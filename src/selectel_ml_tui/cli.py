@@ -48,7 +48,9 @@ def _prompt_str(
     default_note: str = "(Enter — оставить)",
 ) -> str:
     prompt = f"{label} [{current or 'пусто'}] {default_note}: "
-    value = click.prompt(prompt, default="", hide_input=hide_input, show_default=False)
+    value: str = click.prompt(
+        prompt, default="", hide_input=hide_input, show_default=False
+    )
     if value == "":
         return current
     return value
