@@ -108,14 +108,15 @@ def test_save_and_get_latest_model_metrics(tmp_path) -> None:
 
 def test_history_upsert_same_day(tmp_path) -> None:
     storage = Storage(tmp_path / "cache.db")
+    timestamp = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)
     point = HistoryPoint(
-        timestamp=dt.datetime(2026, 8, 1, 12, 0),
+        timestamp=timestamp,
         amount_rub=Decimal("10.00"),
         tokens=TokenUsage(input_tokens=5),
     )
     storage.save_history(point)
     point2 = HistoryPoint(
-        timestamp=dt.datetime(2026, 8, 1, 12, 0),
+        timestamp=timestamp,
         amount_rub=Decimal("15.00"),
         tokens=TokenUsage(input_tokens=8),
     )
@@ -151,7 +152,7 @@ def test_save_snapshot_combined(tmp_path) -> None:
         metrics=_metrics(),
         models=_models(),
         history_point=HistoryPoint(
-            timestamp=dt.datetime(2026, 8, 1, 12, 0),
+            timestamp=dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1),
             amount_rub=Decimal("854.83"),
             tokens=TokenUsage(input_tokens=100),
         ),
@@ -225,7 +226,7 @@ def test_clear_removes_all_rows(tmp_path) -> None:
     storage = Storage(tmp_path / "cache.db")
     storage.save_history(
         HistoryPoint(
-            timestamp=dt.datetime(2026, 8, 18),
+            timestamp=dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1),
             amount_rub=Decimal("1"),
             tokens=TokenUsage(input_tokens=1),
         )

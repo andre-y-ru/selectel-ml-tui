@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: docker
+    steps:
+      - name: Install Python and tools
+        run: |
+          apk add --no-cache python3 py3-pip git
+          python3 -m venv /opt/venv
+          echo "/opt/venv/bin" >> "$GITHUB_PATH"
+
+      - name: Checkout
+        run: |
+          git init -q
+          git remote add origin "${GITHUB_SERVER_URL:-http://10.8.0.52:8080}/$GITHUB_REPOSITORY.git"
+          git fetch -q --depth 1 origin "$GITHUB_SHA"
+          git checkout -q FETCH_HEAD
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: |
+          ruff check --fix src tests
+          ruff check src tests
+
+      - name: Typecheck (mypy)
+        run: mypy src
+
+      - name: Tests (pytest + coverage)
+        run: python -m pytest -v --cov=selectel_ml_tui --cov-report=term-missing

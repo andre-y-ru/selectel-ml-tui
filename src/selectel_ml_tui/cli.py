@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
 
 import click
 
@@ -49,10 +48,12 @@ def _prompt_str(
     default_note: str = "(Enter — оставить)",
 ) -> str:
     prompt = f"{label} [{current or 'пусто'}] {default_note}: "
-    value = click.prompt(prompt, default="", hide_input=hide_input, show_default=False)
+    value: str = click.prompt(
+        prompt, default="", hide_input=hide_input, show_default=False
+    )
     if value == "":
         return current
-    return cast(str, value)
+    return value
 
 
 @click.group()
