@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from rich.align import Align
-from rich.panel import Panel
 from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
@@ -46,6 +44,7 @@ from selectel_ml_tui.models import (
 )
 from selectel_ml_tui.services import DashboardData, DataService
 from selectel_ml_tui.storage import Storage
+from selectel_ml_tui.ui import dog_art
 
 PERIOD_OPTIONS = (7, 30, 90)
 
@@ -57,39 +56,31 @@ def _mask_token(value: str) -> str:
 
 
 class DogLoader(Static):
-    """Полноэкранный индикатор загрузки: бегущая ASCII-собачка.
+    """Полноэкранный индикатор загрузки: анимация собачки из GIF.
 
-    overlay поверх всего дашборда с полупрозрачным затемнением; собака
-    «бежит» (переставляет лапы, виляет хвостом), под ней — дорожка из 🐾.
-    Показывается на время обновления статистики и блокирует ввод.
+    Рисуется truecolor half-block'ами (2 пикселя на знакоместо), фон
+    прозрачный — просвечивает затемнённый дашборд. Под собачкой бежит
+    дорожка из 🐾. Показывается на время обновления и блокирует ввод.
     """
 
-    BODY = (
-        "            __",
-        "       ____/  \\___",
-        "      / oo        \\____",
-        "     |      __         \\____",
-        "      \\____/  \\____________/",
-    )
-    LEGS = (
-        ("      ||    ||        \\   ~", "      ||    ||         \\_/"),
-        ("     //    \\\\       \\   ~~", "     //    \\\\        \\_/"),
-        ("      ||    ||        \\     ~", "      ||    ||         \\_/"),
-        ("     \\\\    //       \\    ~~", "     \\\\    //        \\_/"),
-    )
-    CAPTION = "Обновление статистики…"
-    INTERVAL = 0.12
+    INTERVAL = dog_art.FRAME_MS / 1000
+    PAW_SLOTS = 9
 
     frame = reactive(0)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._timer: Timer | None = None
+        self._frames: list[bytes] | None = None
 
     @property
     def running(self) -> bool:
         """Идёт ли анимация."""
         return self._timer is not None
+
+    @property
+    def frame_count(self) -> int:
+        return dog_art.FRAME_COUNT
 
     def start(self) -> None:
         """Запустить анимацию (идемпотентно)."""
@@ -103,29 +94,53 @@ class DogLoader(Static):
             self._timer = None
 
     def _next_frame(self) -> None:
-        self.frame = (self.frame + 1) % len(self.LEGS)
+        self.frame = (self.frame + 1) % dog_art.FRAME_COUNT
 
-    def _art(self) -> str:
-        index = self.frame % len(self.LEGS)
-        legs1, legs2 = self.LEGS[index]
-        return "\n".join([*self.BODY, legs1, legs2])
+    def _get_frames(self) -> list[bytes]:
+        if self._frames is None:
+            self._frames = dog_art.decode_frames()
+        return self._frames
 
-    def _paws(self) -> str:
-        index = self.frame % len(self.LEGS)
-        return " ".join("🐾" if (i + index) % 2 == 0 else "  " for i in range(8))
+    def _paws(self, index: int, width: int) -> str:
+        cells = "".join(
+            "🐾 " if (i + index) % 2 == 0 else "   "
+            for i in range(self.PAW_SLOTS)
+        ).rstrip()
+        pad = max(0, (width - len(cells)) // 2)
+        return " " * pad + cells
 
     def render(self) -> Any:
+        frames = self._get_frames()
+        data = frames[self.frame % len(frames)]
+        width, px_height = dog_art.WIDTH, dog_art.PX_HEIGHT
+        palette = dog_art.PALETTE
         theme = self.app.current_theme
-        body = Text(self._art(), style=f"bold {theme.accent}", justify="center")
-        paws = Text(self._paws(), style=str(theme.secondary), justify="center")
-        caption = Text(self.CAPTION, style=f"bold {theme.foreground}", justify="center")
-        content = Text("\n").join([body, Text(), paws, Text(), caption])
-        return Panel(
-            Align.center(content, vertical="middle"),
-            title="[b]🐕 selectel-ml-tui[/b]",
-            border_style=str(theme.primary),
-            padding=(1, 4),
-        )
+
+        text = Text(justify="center", no_wrap=True)
+        for y in range(0, px_height, 2):
+            for x in range(width):
+                top = data[y * width + x]
+                bottom = data[(y + 1) * width + x] if y + 1 < px_height else 0
+                if top == 0 and bottom == 0:
+                    text.append(" ")
+                elif top == 0:
+                    r, g, b = palette[bottom]
+                    text.append("▄", style=f"#{r:02x}{g:02x}{b:02x}")
+                elif bottom == 0:
+                    r, g, b = palette[top]
+                    text.append("▀", style=f"#{r:02x}{g:02x}{b:02x}")
+                else:
+                    rt, gt, bt = palette[top]
+                    rb, gb, bb = palette[bottom]
+                    text.append(
+                        "▀",
+                        style=f"#{rt:02x}{gt:02x}{bt:02x} on #{rb:02x}{gb:02x}{bb:02x}",
+                    )
+            if y + 2 < px_height:
+                text.append("\n")
+        text.append("\n\n")
+        text.append(self._paws(self.frame, width), style=str(theme.secondary))
+        return text
 
     @on(InputEvent)
     def _block_input(self, event: InputEvent) -> None:
