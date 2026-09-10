@@ -59,12 +59,11 @@ class DogLoader(Static):
     """Полноэкранный индикатор загрузки: анимация собачки из GIF.
 
     Рисуется truecolor half-block'ами (2 пикселя на знакоместо), фон
-    прозрачный — просвечивает затемнённый дашборд. Под собачкой бежит
-    дорожка из 🐾. Показывается на время обновления и блокирует ввод.
+    прозрачный — просвечивает затемнённый дашборд. Показывается на время
+    обновления и блокирует ввод.
     """
 
     INTERVAL = dog_art.FRAME_MS / 1000
-    PAW_SLOTS = 9
 
     frame = reactive(0)
 
@@ -101,20 +100,11 @@ class DogLoader(Static):
             self._frames = dog_art.decode_frames()
         return self._frames
 
-    def _paws(self, index: int, width: int) -> str:
-        cells = "".join(
-            "🐾 " if (i + index) % 2 == 0 else "   "
-            for i in range(self.PAW_SLOTS)
-        ).rstrip()
-        pad = max(0, (width - len(cells)) // 2)
-        return " " * pad + cells
-
     def render(self) -> Any:
         frames = self._get_frames()
         data = frames[self.frame % len(frames)]
         width, px_height = dog_art.WIDTH, dog_art.PX_HEIGHT
         palette = dog_art.PALETTE
-        theme = self.app.current_theme
 
         text = Text(justify="center", no_wrap=True)
         for y in range(0, px_height, 2):
@@ -138,8 +128,6 @@ class DogLoader(Static):
                     )
             if y + 2 < px_height:
                 text.append("\n")
-        text.append("\n\n")
-        text.append(self._paws(self.frame, width), style=str(theme.secondary))
         return text
 
     @on(InputEvent)
