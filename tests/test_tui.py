@@ -319,8 +319,6 @@ async def test_dog_loader_hidden_when_idle(tmp_path) -> None:
         assert not loader.has_class("visible")
         assert loader.display is False
         assert not loader.running
-        line = app.screen.query_one("#progress-line", Static)
-        assert str(line.render()) == ""
         # встроенный loading Textual не должен активироваться (иначе — точки)
         assert app.screen.loading is False
 
@@ -344,16 +342,43 @@ async def test_dog_loader_shown_during_refresh(tmp_path) -> None:
         assert loader.has_class("visible")
         assert loader.display is True
         assert loader.running
-        line = app.screen.query_one("#progress-line", Static)
-        assert "обновляет статистику" in str(line.render())
         assert app.screen.loading is False
+        # overlay покрывает весь экран
+        assert loader.region == app.screen.region
 
         release.set()
         await pilot.pause(0.1)
         assert not loader.has_class("visible")
         assert loader.display is False
         assert not loader.running
-        assert str(line.render()) == ""
+
+
+async def test_input_blocked_during_refresh(tmp_path) -> None:
+    release = asyncio.Event()
+    settings = Settings(refresh_interval=3600)
+    creds = Credentials(static_token="tok")
+    storage = Storage(tmp_path / "cache.db")
+    service = BlockingService(_dashboard_data(), release)
+    app = SelectelMLTUI(
+        settings=settings,
+        credentials=creds,
+        storage=storage,
+        service=service,  # type: ignore[arg-type]
+    )
+    async with app.run_test() as pilot:
+        await service.started.wait()
+        await pilot.pause()
+        # во время загрузки горячие клавиши заблокированы
+        await pilot.press("h")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "DashboardScreen"
+
+        release.set()
+        await pilot.pause(0.1)
+        # после загрузки навигация снова работает
+        await pilot.press("h")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "HistoryScreen"
 
 
 async def test_dog_loader_animates(tmp_path) -> None:
