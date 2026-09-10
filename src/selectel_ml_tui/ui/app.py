@@ -9,11 +9,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from textual import work
+from rich.align import Align
+from rich.panel import Panel
+from rich.text import Text
+from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
+from textual.events import InputEvent
 from textual.reactive import reactive
 from textual.screen import Screen
 from textual.timer import Timer
@@ -53,19 +57,28 @@ def _mask_token(value: str) -> str:
 
 
 class DogLoader(Static):
-    """ASCII-«собачка» — анимация ожидания обновления статистики.
+    """Полноэкранный индикатор загрузки: бегущая ASCII-собачка.
 
-    Кадры сменяются по таймеру (виляет хвостом). Показывается как
-    центрированный overlay поверх дашборда на время загрузки данных.
+    overlay поверх всего дашборда с полупрозрачным затемнением; собака
+    «бежит» (переставляет лапы, виляет хвостом), под ней — дорожка из 🐾.
+    Показывается на время обновления статистики и блокирует ввод.
     """
 
-    FRAMES = (
-        "  /^ ^\\\n ( o.o )   ~\n  \\ - /   ~~~\n   |_|",
-        "  /^ ^\\\n ( o.o )  ~~~\n  \\ - /  ~~~~\n   |_|",
-        "  /^ ^\\\n ( o.o )  ~~\n  \\ - /  ~\n   |_|",
+    BODY = (
+        "            __",
+        "       ____/  \\___",
+        "      / oo        \\____",
+        "     |      __         \\____",
+        "      \\____/  \\____________/",
+    )
+    LEGS = (
+        ("      ||    ||        \\   ~", "      ||    ||         \\_/"),
+        ("     //    \\\\       \\   ~~", "     //    \\\\        \\_/"),
+        ("      ||    ||        \\     ~", "      ||    ||         \\_/"),
+        ("     \\\\    //       \\    ~~", "     \\\\    //        \\_/"),
     )
     CAPTION = "Обновление статистики…"
-    INTERVAL = 0.15
+    INTERVAL = 0.12
 
     frame = reactive(0)
 
@@ -90,11 +103,36 @@ class DogLoader(Static):
             self._timer = None
 
     def _next_frame(self) -> None:
-        self.frame = (self.frame + 1) % len(self.FRAMES)
+        self.frame = (self.frame + 1) % len(self.LEGS)
+
+    def _art(self) -> str:
+        index = self.frame % len(self.LEGS)
+        legs1, legs2 = self.LEGS[index]
+        return "\n".join([*self.BODY, legs1, legs2])
+
+    def _paws(self) -> str:
+        index = self.frame % len(self.LEGS)
+        return " ".join("🐾" if (i + index) % 2 == 0 else "  " for i in range(8))
 
     def render(self) -> Any:
-        art = self.FRAMES[self.frame % len(self.FRAMES)]
-        return f"{art}\n\n{self.CAPTION}"
+        theme = self.app.current_theme
+        body = Text(self._art(), style=f"bold {theme.accent}", justify="center")
+        paws = Text(self._paws(), style=str(theme.secondary), justify="center")
+        caption = Text(self.CAPTION, style=f"bold {theme.foreground}", justify="center")
+        content = Text("\n").join([body, Text(), paws, Text(), caption])
+        return Panel(
+            Align.center(content, vertical="middle"),
+            title="[b]🐕 selectel-ml-tui[/b]",
+            border_style=str(theme.primary),
+            padding=(1, 4),
+        )
+
+    @on(InputEvent)
+    def _block_input(self, event: InputEvent) -> None:
+        """Перехватить ввод, пока показывается индикатор загрузки."""
+        if self.has_class("visible"):
+            event.stop()
+            event.prevent_default()
 
 
 class ConsumptionBars(Static):
@@ -160,7 +198,6 @@ class DashboardScreen(Screen[Any]):
             yield Static("По моделям", id="models-title")
             yield DataTable(id="models-table")
         yield DogLoader(id="dog-loader")
-        yield Static("", id="progress-line")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -178,20 +215,28 @@ class DashboardScreen(Screen[Any]):
             self.refreshing = False
 
     def watch_refreshing(self, refreshing: bool) -> None:
-        """Показать/скрыть собачку и строку прогресса при обновлении."""
+        """Показать/скрыть полноэкранную собачку при обновлении."""
         try:
             loader = self.query_one("#dog-loader", DogLoader)
-            line = self.query_one("#progress-line", Static)
         except NoMatches:  # watcher может сработать до монтирования детей
             return
         if refreshing:
             loader.add_class("visible")
             loader.start()
-            line.update("[b]🐕 Собачка обновляет статистику…[/]")
+            self.set_focus(None)
         else:
             loader.remove_class("visible")
             loader.stop()
-            line.update("")
+            try:
+                self.query_one("#models-table", DataTable).focus()
+            except NoMatches:  # pragma: no cover - на всякий случай
+                pass
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Заблокировать горячие клавиши на время обновления."""
+        if self.refreshing:
+            return False
+        return super().check_action(action, parameters)
 
     def watch_data(self, data: DashboardData) -> None:
         status = "offline" if data.offline else "online"
@@ -617,23 +662,16 @@ class SelectelMLTUI(App[Any]):
     }
     #dog-loader {
         display: none;
-        layer: overlay;
-        width: auto;
-        height: auto;
-        padding: 1 4;
-        border: round $accent;
-        background: $surface;
+        dock: top;
+        layer: _loading;
+        width: 100%;
+        height: 100%;
+        background: $background 80%;
         content-align: center middle;
         text-align: center;
     }
     #dog-loader.visible {
         display: block;
-        align: center middle;
-    }
-    #progress-line {
-        dock: bottom;
-        height: 1;
-        text-align: center;
     }
     """
 
