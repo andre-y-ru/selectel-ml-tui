@@ -669,7 +669,7 @@ class SelectelMLTUI(App[Any]):
         layer: _loading;
         width: 100%;
         height: 100%;
-        background: $background 80%;
+        background: $background 50%;
         content-align: center middle;
         text-align: center;
     }

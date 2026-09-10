@@ -405,8 +405,8 @@ def test_dog_art_frames() -> None:
     assert len(frames) == dog_art.FRAME_COUNT
     size = dog_art.WIDTH * dog_art.PX_HEIGHT
     assert all(len(f) == size for f in frames)
-    # уменьшенный размер и чётная высота для half-block
-    assert (dog_art.WIDTH, dog_art.PX_HEIGHT) == (32, 22)
+    # увеличенный размер и чётная высота для half-block
+    assert (dog_art.WIDTH, dog_art.PX_HEIGHT) == (48, 32)
     assert dog_art.PX_HEIGHT % 2 == 0
     # индексы палитры в допустимом диапазоне, фон = 0
     assert all(b < len(dog_art.PALETTE) for f in frames for b in f)
