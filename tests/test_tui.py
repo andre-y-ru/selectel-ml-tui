@@ -20,6 +20,7 @@ from selectel_ml_tui.models import (
 )
 from selectel_ml_tui.services import DashboardData
 from selectel_ml_tui.storage import Storage
+from selectel_ml_tui.ui import dog_art
 from selectel_ml_tui.ui.app import DogLoader, SelectelMLTUI
 
 
@@ -389,9 +390,25 @@ async def test_dog_loader_animates(tmp_path) -> None:
         loader.add_class("visible")
         loader.start()
         assert loader.running
-        first = loader.render()
-        await pilot.pause(0.4)
-        second = loader.render()
-        assert first != second
+        assert loader.frame_count == dog_art.FRAME_COUNT
+        first_frame = loader.frame
+        first = str(loader.render())
+        await pilot.pause(0.3)
+        assert loader.frame != first_frame
+        assert str(loader.render()) != first
+        # дорожка из лапок присутствует
+        assert "🐾" in str(loader.render())
         loader.stop()
         assert not loader.running
+
+
+def test_dog_art_frames() -> None:
+    frames = dog_art.decode_frames()
+    assert len(frames) == dog_art.FRAME_COUNT
+    size = dog_art.WIDTH * dog_art.PX_HEIGHT
+    assert all(len(f) == size for f in frames)
+    # индексы палитры в допустимом диапазоне, фон = 0
+    assert all(b < len(dog_art.PALETTE) for f in frames for b in f)
+    assert dog_art.FRAME_MS == 40
+    # кадры различаются (анимация)
+    assert len({bytes(f) for f in frames}) > 1
