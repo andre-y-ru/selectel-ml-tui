@@ -22,3 +22,6 @@ credentials
 # OS
 .DS_Store
 Thumbs.db
+
+# Local lockfile (not published)
+uv.lock
