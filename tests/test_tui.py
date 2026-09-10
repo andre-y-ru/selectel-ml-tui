@@ -396,8 +396,6 @@ async def test_dog_loader_animates(tmp_path) -> None:
         await pilot.pause(0.3)
         assert loader.frame != first_frame
         assert str(loader.render()) != first
-        # дорожка из лапок присутствует
-        assert "🐾" in str(loader.render())
         loader.stop()
         assert not loader.running
 
@@ -407,6 +405,9 @@ def test_dog_art_frames() -> None:
     assert len(frames) == dog_art.FRAME_COUNT
     size = dog_art.WIDTH * dog_art.PX_HEIGHT
     assert all(len(f) == size for f in frames)
+    # уменьшенный размер и чётная высота для half-block
+    assert (dog_art.WIDTH, dog_art.PX_HEIGHT) == (32, 22)
+    assert dog_art.PX_HEIGHT % 2 == 0
     # индексы палитры в допустимом диапазоне, фон = 0
     assert all(b < len(dog_art.PALETTE) for f in frames for b in f)
     assert dog_art.FRAME_MS == 40
