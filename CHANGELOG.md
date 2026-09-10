@@ -2,6 +2,21 @@
 
 Все заметные изменения проекта `selectel-ml-tui`.
 
+## [1.0.4] — 2026-09-03
+
+Анимация-«собачка» при обновлении статистики.
+
+### Добавлено
+- Экран **Dashboard**: ASCII-«собачка» (`DogLoader`) как индикатор загрузки —
+  центрированный overlay поверх дашборда с анимацией (виляет хвостом,
+  кадры меняются каждые 0,15 с) и подписью «Обновление статистики…».
+- Индикация обновления в нижней строке (`#progress-line`, `dock: bottom`).
+- Показывается при автообновлении по таймеру и при ручном обновлении (`r`);
+  скрывается по завершении загрузки.
+
+### Примечание
+- Реализует задачу #1 («Новая загрузка обновления статистики»).
+
 ## [1.0.3] — 2026-08-19
 
 Полноценный вывод данных из Gateway API ИИ-роутера (IAM).
@@ -86,6 +101,7 @@
 - ruff (flake8/isort/format), mypy strict — без ошибок.
 - Подсказка при первом запуске без токена, FAQ и troubleshooting в README.
 
+[1.0.4]: https://github.com/selectel-ml-tui/selectel-ml-tui/releases/tag/v1.0.4
 [1.0.3]: https://github.com/selectel-ml-tui/selectel-ml-tui/releases/tag/v1.0.3
 [1.0.2]: https://github.com/selectel-ml-tui/selectel-ml-tui/releases/tag/v1.0.2
 [1.0.1]: https://github.com/selectel-ml-tui/selectel-ml-tui/releases/tag/v1.0.1

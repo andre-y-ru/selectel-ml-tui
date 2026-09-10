@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 from decimal import Decimal
 
@@ -19,7 +20,7 @@ from selectel_ml_tui.models import (
 )
 from selectel_ml_tui.services import DashboardData
 from selectel_ml_tui.storage import Storage
-from selectel_ml_tui.ui.app import SelectelMLTUI
+from selectel_ml_tui.ui.app import DogLoader, SelectelMLTUI
 
 
 class FakeService:
@@ -31,6 +32,20 @@ class FakeService:
 
     async def refresh(self) -> DashboardData:
         self.refresh_count += 1
+        return self.data
+
+
+class BlockingService:
+    """Сервис-заглушка: блокирует refresh до снятия события."""
+
+    def __init__(self, data: DashboardData, release: asyncio.Event) -> None:
+        self.data = data
+        self.release = release
+        self.started = asyncio.Event()
+
+    async def refresh(self) -> DashboardData:
+        self.started.set()
+        await self.release.wait()
         return self.data
 
 
@@ -294,3 +309,58 @@ async def test_keys_screen(tmp_path) -> None:
         await pilot.press("escape")
         await pilot.pause()
         assert app.screen.__class__.__name__ == "DashboardScreen"
+
+
+async def test_dog_loader_hidden_when_idle(tmp_path) -> None:
+    app = _make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        loader = app.screen.query_one("#dog-loader", DogLoader)
+        assert not loader.has_class("visible")
+        assert not loader.running
+        line = app.screen.query_one("#progress-line", Static)
+        assert str(line.render()) == ""
+
+
+async def test_dog_loader_shown_during_refresh(tmp_path) -> None:
+    release = asyncio.Event()
+    settings = Settings(refresh_interval=3600)
+    creds = Credentials(static_token="tok")
+    storage = Storage(tmp_path / "cache.db")
+    service = BlockingService(_dashboard_data(), release)
+    app = SelectelMLTUI(
+        settings=settings,
+        credentials=creds,
+        storage=storage,
+        service=service,  # type: ignore[arg-type]
+    )
+    async with app.run_test() as pilot:
+        await service.started.wait()
+        await pilot.pause()
+        loader = app.screen.query_one("#dog-loader", DogLoader)
+        assert loader.has_class("visible")
+        assert loader.running
+        line = app.screen.query_one("#progress-line", Static)
+        assert "обновляет статистику" in str(line.render())
+
+        release.set()
+        await pilot.pause(0.1)
+        assert not loader.has_class("visible")
+        assert not loader.running
+        assert str(line.render()) == ""
+
+
+async def test_dog_loader_animates(tmp_path) -> None:
+    app = _make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        loader = app.screen.query_one("#dog-loader", DogLoader)
+        loader.add_class("visible")
+        loader.start()
+        assert loader.running
+        first = loader.render()
+        await pilot.pause(0.4)
+        second = loader.render()
+        assert first != second
+        loader.stop()
+        assert not loader.running
