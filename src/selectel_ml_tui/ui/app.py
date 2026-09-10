@@ -13,8 +13,10 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.screen import Screen
+from textual.timer import Timer
 from textual.widgets import (
     Button,
     DataTable,
@@ -48,6 +50,51 @@ def _mask_token(value: str) -> str:
     if not value:
         return "(не задан)"
     return f"{value[:4]}…({len(value)})"
+
+
+class DogLoader(Static):
+    """ASCII-«собачка» — анимация ожидания обновления статистики.
+
+    Кадры сменяются по таймеру (виляет хвостом). Показывается как
+    центрированный overlay поверх дашборда на время загрузки данных.
+    """
+
+    FRAMES = (
+        "  /^ ^\\\n ( o.o )   ~\n  \\ - /   ~~~\n   |_|",
+        "  /^ ^\\\n ( o.o )  ~~~\n  \\ - /  ~~~~\n   |_|",
+        "  /^ ^\\\n ( o.o )  ~~\n  \\ - /  ~\n   |_|",
+    )
+    CAPTION = "Обновление статистики…"
+    INTERVAL = 0.15
+
+    frame = reactive(0)
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._timer: Timer | None = None
+
+    @property
+    def running(self) -> bool:
+        """Идёт ли анимация."""
+        return self._timer is not None
+
+    def start(self) -> None:
+        """Запустить анимацию (идемпотентно)."""
+        if self._timer is None:
+            self._timer = self.set_interval(self.INTERVAL, self._next_frame)
+
+    def stop(self) -> None:
+        """Остановить анимацию (идемпотентно)."""
+        if self._timer is not None:
+            self._timer.pause()
+            self._timer = None
+
+    def _next_frame(self) -> None:
+        self.frame = (self.frame + 1) % len(self.FRAMES)
+
+    def render(self) -> Any:
+        art = self.FRAMES[self.frame % len(self.FRAMES)]
+        return f"{art}\n\n{self.CAPTION}"
 
 
 class ConsumptionBars(Static):
@@ -112,6 +159,8 @@ class DashboardScreen(Screen[Any]):
                 yield Static("", id="metrics-panel", classes="panel")
             yield Static("По моделям", id="models-title")
             yield DataTable(id="models-table")
+        yield DogLoader(id="dog-loader")
+        yield Static("", id="progress-line")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -127,6 +176,22 @@ class DashboardScreen(Screen[Any]):
             self.notify(f"Ошибка обновления: {exc}", severity="error")
         finally:
             self.loading = False
+
+    def watch_loading(self, loading: bool) -> None:
+        """Показать/скрыть собачку и строку прогресса при обновлении."""
+        try:
+            loader = self.query_one("#dog-loader", DogLoader)
+            line = self.query_one("#progress-line", Static)
+        except NoMatches:  # watcher может сработать до монтирования детей
+            return
+        if loading:
+            loader.add_class("visible")
+            loader.start()
+            line.update("[b]🐕 Собачка обновляет статистику…[/]")
+        else:
+            loader.remove_class("visible")
+            loader.stop()
+            line.update("")
 
     def watch_data(self, data: DashboardData) -> None:
         status = "offline" if data.offline else "online"
@@ -549,6 +614,26 @@ class SelectelMLTUI(App[Any]):
         margin: 2 4;
         padding: 1 2;
         border: round $primary;
+    }
+    #dog-loader {
+        display: none;
+        layer: overlay;
+        width: auto;
+        height: auto;
+        padding: 1 4;
+        border: round $accent;
+        background: $surface;
+        content-align: center middle;
+        text-align: center;
+    }
+    #dog-loader.visible {
+        display: block;
+        align: center middle;
+    }
+    #progress-line {
+        dock: bottom;
+        height: 1;
+        text-align: center;
     }
     """
 
