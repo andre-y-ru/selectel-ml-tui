@@ -317,9 +317,12 @@ async def test_dog_loader_hidden_when_idle(tmp_path) -> None:
         await pilot.pause()
         loader = app.screen.query_one("#dog-loader", DogLoader)
         assert not loader.has_class("visible")
+        assert loader.display is False
         assert not loader.running
         line = app.screen.query_one("#progress-line", Static)
         assert str(line.render()) == ""
+        # встроенный loading Textual не должен активироваться (иначе — точки)
+        assert app.screen.loading is False
 
 
 async def test_dog_loader_shown_during_refresh(tmp_path) -> None:
@@ -339,13 +342,16 @@ async def test_dog_loader_shown_during_refresh(tmp_path) -> None:
         await pilot.pause()
         loader = app.screen.query_one("#dog-loader", DogLoader)
         assert loader.has_class("visible")
+        assert loader.display is True
         assert loader.running
         line = app.screen.query_one("#progress-line", Static)
         assert "обновляет статистику" in str(line.render())
+        assert app.screen.loading is False
 
         release.set()
         await pilot.pause(0.1)
         assert not loader.has_class("visible")
+        assert loader.display is False
         assert not loader.running
         assert str(line.render()) == ""
 

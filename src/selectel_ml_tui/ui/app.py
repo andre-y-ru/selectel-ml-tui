@@ -134,7 +134,7 @@ class DashboardScreen(Screen[Any]):
     ]
 
     data = reactive(DashboardData())
-    loading = reactive(False)
+    refreshing = reactive(False)
 
     def __init__(
         self,
@@ -169,22 +169,22 @@ class DashboardScreen(Screen[Any]):
 
     @work(exclusive=True, group="refresh")
     async def _refresh(self) -> None:
-        self.loading = True
+        self.refreshing = True
         try:
             self.data = await self._service.refresh()
         except Exception as exc:  # noqa: BLE001 - показываем toast при ошибке
             self.notify(f"Ошибка обновления: {exc}", severity="error")
         finally:
-            self.loading = False
+            self.refreshing = False
 
-    def watch_loading(self, loading: bool) -> None:
+    def watch_refreshing(self, refreshing: bool) -> None:
         """Показать/скрыть собачку и строку прогресса при обновлении."""
         try:
             loader = self.query_one("#dog-loader", DogLoader)
             line = self.query_one("#progress-line", Static)
         except NoMatches:  # watcher может сработать до монтирования детей
             return
-        if loading:
+        if refreshing:
             loader.add_class("visible")
             loader.start()
             line.update("[b]🐕 Собачка обновляет статистику…[/]")
